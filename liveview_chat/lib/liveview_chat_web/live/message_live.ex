@@ -1,11 +1,14 @@
 defmodule LiveviewChatWeb.MessageLive do
   use LiveviewChatWeb, :live_view
   alias LiveviewChat.Message
+  alias LiveviewChat.PubSub
 
   def mount(_params, _session, socket) do
+    if connected?(socket), do: Message.subscribe()
+
     messages = Message.list_messages() |> Enum.reverse()
     changeset = Message.changeset(%Message{}, %{})
-    {:ok, assign(socket, changeset: changeset, messages: messages)}
+    {:ok, assign(socket, messages: messages, changeset: changeset), temporary_assigns: [messages: []]}
   end
 
   def render(assigns) do
@@ -17,9 +20,13 @@ defmodule LiveviewChatWeb.MessageLive do
       {:error, changeset} ->
         {:noreply, assign(socket, changeset: changeset)}
 
-      {:ok, _message} ->
+      :ok -> # broadcast returns :ok (just the atom!) if there are no errors
         changeset = Message.changeset(%Message{}, %{"name" => params["name"]})
         {:noreply, assign(socket, changeset: changeset)}
     end
+  end
+
+  def handle_info({:message_created, message}, socket) do
+    {:noreply, assign(socket, messages: [message])}
   end
 end
